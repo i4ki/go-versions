@@ -176,6 +176,137 @@ func MeetingConstraintsExact(spec constraints.Spec) Set {
 	}
 }
 
+// MeetingConstraintsSpecialPessimistic is like MeetingConstraintsExact except
+// that the pessimistic operator does not match next breaking version prereleases.
+//
+// For example, if using the [MeetingConstraintsExact] with the constraint
+// `~> 0.1.2` it matches the prereleases of the 0.2 version (like 0.2-beta), then
+// potentially the constraint selects versions incompatible with the requested
+// version.
+// But using this function, the prereleases of next breaking version are not
+// matched.
+func MeetingConstraintsSpecialPessimistic(spec constraints.Spec) Set {
+	if spec == nil {
+		return All
+	}
+
+	switch ts := spec.(type) {
+
+	case constraints.VersionSpec:
+		lowerBound, upperBound := ts.ConstraintBounds()
+		switch lowerBound.Operator {
+		case constraints.OpUnconstrained:
+			return All
+		case constraints.OpEqual:
+			return Only(versionFromExactVersionSpec(lowerBound.Boundary))
+		default:
+			return AtLeast(
+				versionFromExactVersionSpec(lowerBound.Boundary),
+			).Intersection(
+				OlderThan(versionFromExactVersionSpec(upperBound.Boundary)))
+		}
+
+	case constraints.SelectionSpec:
+		lower := ts.Boundary.ConstrainToZero()
+		if ts.Operator != constraints.OpEqual && ts.Operator != constraints.OpNotEqual {
+			lower.Metadata = "" // metadata is only considered for exact matches
+		}
+
+		switch ts.Operator {
+		case constraints.OpUnconstrained:
+			// Degenerate case, but we'll allow it.
+			return All
+		case constraints.OpMatch:
+			// The match operator uses the constraints implied by the
+			// Boundary version spec as the specification.
+			// Note that we discard "lower" in this case, because we do want
+			// to match our metadata if it's specified.
+			return MeetingConstraintsSpecialPessimistic(ts.Boundary)
+		case constraints.OpEqual, constraints.OpNotEqual:
+			set := Only(versionFromExactVersionSpec(lower))
+			if ts.Operator == constraints.OpNotEqual {
+				// We want everything _except_ what's in our set, then.
+				set = All.Subtract(set)
+			}
+			return set
+		case constraints.OpGreaterThan:
+			return NewerThan(versionFromExactVersionSpec(lower))
+		case constraints.OpGreaterThanOrEqual:
+			return AtLeast(versionFromExactVersionSpec(lower))
+		case constraints.OpLessThan:
+			return OlderThan(versionFromExactVersionSpec(lower))
+		case constraints.OpLessThanOrEqual:
+			return AtMost(versionFromExactVersionSpec(lower))
+		case constraints.OpGreaterThanOrEqualMinorOnly:
+			upper := lower
+			upper.Minor.Num = ^uint64(0)
+			upper.Patch.Num = ^uint64(0)
+			upper.Prerelease = ""
+			return AtLeast(
+				versionFromExactVersionSpec(lower),
+			).Intersection(
+				AtMost(versionFromExactVersionSpec(upper)))
+		case constraints.OpGreaterThanOrEqualPatchOnly:
+			upper := lower
+			upper.Patch.Num = ^uint64(0)
+			upper.Prerelease = ""
+			return AtLeast(
+				versionFromExactVersionSpec(lower),
+			).Intersection(
+				AtMost(versionFromExactVersionSpec(upper)))
+		default:
+			panic(fmt.Errorf("unsupported constraints.SelectionOp %s", ts.Operator))
+		}
+
+	case constraints.UnionSpec:
+		if len(ts) == 0 {
+			return All
+		}
+		if len(ts) == 1 {
+			return MeetingConstraintsSpecialPessimistic(ts[0])
+		}
+		union := make(setUnion, len(ts))
+		for i, subSpec := range ts {
+			union[i] = MeetingConstraintsSpecialPessimistic(subSpec).setI
+		}
+		return Set{setI: union}
+
+	case constraints.IntersectionSpec:
+		if len(ts) == 0 {
+			return All
+		}
+		if len(ts) == 1 {
+			return MeetingConstraintsSpecialPessimistic(ts[0])
+		}
+		intersection := make(setIntersection, len(ts))
+		for i, subSpec := range ts {
+			intersection[i] = MeetingConstraintsSpecialPessimistic(subSpec).setI
+		}
+		return Set{setI: intersection}
+
+	default:
+		// should never happen because the above cases are exhaustive for
+		// all valid constraint implementations.
+		panic(fmt.Errorf("unsupported constraints.Spec implementation %T", spec))
+	}
+}
+
+func MeetingConstraintsExactStringRuby(spec string) (Set, error) {
+	s, err := constraints.ParseRubyStyleMulti(spec)
+	if err != nil {
+		return None, err
+	}
+	return MeetingConstraintsExact(s), nil
+}
+
+func MeetingConstraintsSpecialPessimisticStringRuby(spec string) (Set, error) {
+	s, err := constraints.ParseRubyStyleMulti(spec)
+	if err != nil {
+		return None, err
+	}
+	return MeetingConstraintsSpecialPessimistic(s), nil
+}
+
 // MeetingConstraintsString attempts to parse the given spec as a constraints
 // string in our canonical format, which is most similar to the syntax used by
 // npm, Go's "dep" tool, Rust's "cargo", etc.

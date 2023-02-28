@@ -333,6 +333,141 @@ func TestSetHas(t *testing.T) {
 			MustParseVersion("2.0.0"),
 			false,
 		},
+		{
+			MustMakeSet(MeetingConstraintsExactStringRuby("~> 1")),
+			MustParseVersion("2.0.0-beta1"),
+			true,
+		},
+		{
+			MustMakeSet(MeetingConstraintsExactStringRuby("~> 0.1")),
+			MustParseVersion("1.0.0-beta1"),
+			true,
+		},
+		{
+			MustMakeSet(MeetingConstraintsExactStringRuby("~> 0.1.3")),
+			MustParseVersion("0.2.0-beta1"),
+			true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Set.GoString(), func(t *testing.T) {
+			got := test.Set.Has(test.Has)
+
+			if got != test.Want {
+				t.Errorf(
+					"wrong result\nset:     %#v\nversion: %#v\ngot:     %#v\nwant:    %#v",
+					test.Set,
+					test.Has,
+					got, test.Want,
+				)
+			}
+		})
+	}
+}
+
+func TestSpecialPessimisticHas(t *testing.T) {
+	tests := []struct {
+		Set  Set
+		Has  Version
+		Want bool
+	}{
+		{
+			MustMakeSet(MeetingConstraintsSpecialPessimisticStringRuby("~> 1.2.3")),
+			MustParseVersion("1.2.3"),
+			true,
+		},
+		{
+			MustMakeSet(MeetingConstraintsSpecialPessimisticStringRuby("~> 1.2.3")),
+			MustParseVersion("1.2.5"),
+			true,
+		},
+		{
+			MustMakeSet(MeetingConstraintsSpecialPessimisticStringRuby("~> 1.2.3")),
+			MustParseVersion("1.3.0"),
+			false,
+		},
+		{
+			MustMakeSet(MeetingConstraintsSpecialPessimisticStringRuby("~> 1.2")),
+			MustParseVersion("1.2.3"),
+			true,
+		},
+		{
+			MustMakeSet(MeetingConstraintsSpecialPessimisticStringRuby("~> 1.2")),
+			MustParseVersion("1.2.5"),
+			true,
+		},
+		{
+			MustMakeSet(MeetingConstraintsSpecialPessimisticStringRuby("~> 1.2")),
+			MustParseVersion("1.3.0"),
+			true,
+		},
+		{
+			MustMakeSet(MeetingConstraintsSpecialPessimisticStringRuby("~> 1.2")),
+			MustParseVersion("2.0.0"),
+			false,
+		},
+		{
+			MustMakeSet(MeetingConstraintsSpecialPessimisticStringRuby("~> 1")),
+			MustParseVersion("1.2.3"),
+			true,
+		},
+		{
+			MustMakeSet(MeetingConstraintsSpecialPessimisticStringRuby("~> 1")),
+			MustParseVersion("1.2.5"),
+			true,
+		},
+		{
+			MustMakeSet(MeetingConstraintsSpecialPessimisticStringRuby("~> 1")),
+			MustParseVersion("1.3.0"),
+			true,
+		},
+		{
+			MustMakeSet(MeetingConstraintsSpecialPessimisticStringRuby("~> 1")),
+			MustParseVersion("1.99999.99999"),
+			true,
+		},
+		{
+			MustMakeSet(MeetingConstraintsSpecialPessimisticStringRuby("~> 1")),
+			MustParseVersion("2.0.0"),
+			false,
+		},
+		{
+			MustMakeSet(MeetingConstraintsSpecialPessimisticStringRuby("~> 1")),
+			MustParseVersion("2.0.0-beta1"),
+			false,
+		},
+		{
+			MustMakeSet(MeetingConstraintsSpecialPessimisticStringRuby("~> 0.1")),
+			MustParseVersion("1.0.0-beta1"),
+			false,
+		},
+		{
+			MustMakeSet(MeetingConstraintsSpecialPessimisticStringRuby("~> 0.1.3")),
+			MustParseVersion("0.2.0-beta1"),
+			false,
+		},
+
+		{
+			MustMakeSet(MeetingConstraintsSpecialPessimisticStringRuby("> 1, < 2.0.0")),
+			MustParseVersion("2.0.0"),
+			false,
+		},
+		{
+			MustMakeSet(MeetingConstraintsSpecialPessimisticStringRuby("> 1, < 2.0.0")),
+			MustParseVersion("2.0.0-beta1"),
+			true,
+		},
+		{
+			MustMakeSet(MeetingConstraintsSpecialPessimisticStringRuby("> 0.1, < 1.0.0")),
+			MustParseVersion("1.0.0-beta1"),
+			true,
+		},
+		{
+			MustMakeSet(MeetingConstraintsSpecialPessimisticStringRuby("> 0.1.3, < 0.2.0")),
+			MustParseVersion("0.2.0-beta1"),
+			true,
+		},
 	}
 
 	for _, test := range tests {
